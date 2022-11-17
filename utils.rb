@@ -11,5 +11,16 @@ module Manipulate
       end
       vals
     end
+
+    def do_until_stopiter(&blk)
+      # blk.call() while true rescue StopIteration
+      while true
+        begin
+          blk.call()
+        rescue StopIteration
+          break
+        end
+      end
+    end
   end
 end

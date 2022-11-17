@@ -1,6 +1,9 @@
 require "./utils.rb"
+cnt = 0
 
 class Lexer
+  class LexError < StandardError; end
+
   OTHER_NAMES = {
     "'" => :quote,
     "(" => :lparen,
@@ -16,7 +19,7 @@ class Lexer
     @len = str.size
     @beg = { ln: 1, col: 1, idx: 0 }
     @pos = { ln: 1, col: 1, idx: 0 }
-    @ttp = :none
+    @tokens = []
   end
 
   def pdiff(a, b)
@@ -38,16 +41,41 @@ class Lexer
     next_chr!()
   end
 
-  def lex()
-    raise StopIteration if @pos[:idx] >= @len
+  def ignore_to_eol()
+    next while next_chr!() != ?\n
+    newline!()
+  end
+
+  def lex_after_newline()
+    ignore_to_eol()
+    _lex()
+  end
+
+  def _lex()
+    raise StopIteration if at_end?()
 
     begin_tkn!()
+    return lex_after_newline() if peekl(2) == ";;"
     return lex_number() if peek() =~ /[0-9]/ || peekl(2) =~ /-[0-9]/
-    return lex_string() if peek() =~ /"/
+    return lex_string() if peek() == ?"
     return lex_other() if peek() =~ /[\(\)\[\]\{\}']/
-    return (newline!(); lex()) if peek() == ?\n
-    return (next_chr!(); lex()) if peek() =~ /\s/
+    return (newline!(); _lex()) if peek() == ?\n
+    return (next_chr!(); _lex()) if peek() =~ /\s/
     return lex_name()
+  end
+
+  def lex()
+    tkn = _lex()
+    @tokens << tkn
+    tkn
+  end
+
+  def at_end?()
+    @pos[:idx] >= @len
+  end
+
+  def raise_at_end!(littype)
+    raise LexError, "Unterminated #{littype} literal at [#{@beg[:ln]}:#{@beg[:col]}]-[#{@pos[:ln]}:#{@pos[:col]}]" if at_end?()
   end
 
   def peek()
@@ -68,8 +96,7 @@ class Lexer
 
   def next_chr!()
     @pos[:col] += 1
-    c = @str[@pos[:idx] += 1]
-    c
+    @str[@pos[:idx] += 1]
   end
 
   def lex_number()
@@ -133,6 +160,7 @@ class Lexer
     bseg = @beg.dup
     bseg[:idx] += 1
     while next_chr!() != ?"
+      raise_at_end!(:string)
       if peek() == ?\\
         sacc << @str[bseg[:idx], pdiff(@pos, bseg)[:idx]]
         case next_chr!()
@@ -170,6 +198,19 @@ class Lexer
   end
 
   def lexall()
-    Manipulate.take_from_while_lambda { lex() }
+    Manipulate.do_until_stopiter { lex() }
+    @tokens
+  end
+
+  attr_reader :tokens
+
+  class << self
+    def token_type(token)
+      token[:type]
+    end
+
+    def token_type?(token, *types)
+      types.include?(token_type(token))
+    end
   end
 end
