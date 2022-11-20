@@ -1,22 +1,26 @@
 require "./utils.rb"
 require "./lexer.rb"
+require "./form.rb"
 
 class Parser
   class ParseError < StandardError; end
+
+  EXPRESSION_TKNS = %i[string name number]
 
   def initialize(tkns)
     @tkns = tkns
     @len = tkns.size
     @idx = 0
+    @form_pos_stack = []
   end
 
   def at_end?()
-    @idx >= @len
+    @idx >= @len || peek() == nil
   end
 
-  def raise_at_end!(ttype)
-    tok = peek()
-    raise ParseError, "Unterminated form at [#{tok[:pos][:ln]}:#{tok[:pos][:col]}]-[#{tok[:end][:ln]}:#{tok[:end][:col]}]" if at_end?()
+  def raise_at_end!()
+    tok = peekn(-1)
+    raise ParseError, "Unterminated form at #{@form_pos_stack[0]}-#{tok.end}]" if at_end?()
   end
 
   def peek()
@@ -46,31 +50,41 @@ class Parser
   end
 
   def expect(*types)
-    raise ParseError, "Expected #{types.join(", or ")}, got #{Lexer.token_type(peek())}" unless Lexer.token_type?(peek(), *types)
+    unless Lexer.token_type?(peek(), *types)
+      emsg = types.length < 3 ?
+        "#{types.join(" or ")}" :
+        "#{types[...-1].join(", ")}, or #{types[-1]}"
+      raise ParseError, "Expected a #{emsg}, got #{peek() ? Lexer.token_type(peek()) : "EOF"}"
+    end
     next_tkn!()
   end
 
   def parseall()
-    Manipulate.take_from_while_lambda { parse() }
+    Manipulate.take_from_while_lambda { parse_form() }
   end
 
   def parse()
     raise StopIteration if at_end?()
 
     return parse_form() if Lexer.token_type?(peek(), :lparen)
-    return advance()
+    tkn = peek()
+    expect(*EXPRESSION_TKNS)
+    tkn
   end
 
   def parse_form()
+    raise StopIteration if at_end?()
+
     expect(:lparen)
     form = []
-
-    until Lexer.token_type?(peek(), :rparen)
+    @form_pos_stack.push(peek().pos.dup)
+    until Lexer.token_type?((peek() || raise_at_end!()), :rparen)
       form << parse()
     end
 
     expect(:rparen)
+    @form_pos_stack.pop()
 
-    form
+    Form.new(form)
   end
 end

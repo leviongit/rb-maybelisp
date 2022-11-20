@@ -1,4 +1,5 @@
 require "./utils.rb"
+require "./token.rb"
 cnt = 0
 
 class Lexer
@@ -17,17 +18,17 @@ class Lexer
   def initialize(str)
     @str = str
     @len = str.size
-    @beg = { ln: 1, col: 1, idx: 0 }
-    @pos = { ln: 1, col: 1, idx: 0 }
+    @beg = Position.new(1, 1, 0)
+    @pos = Position.new(1, 1, 0)
     @tokens = []
   end
 
   def pdiff(a, b)
-    {
-      ln: a[:ln] - b[:ln],
-      col: a[:col] - b[:col],
-      idx: a[:idx] - b[:idx],
-    }
+    Position.new(
+      a.ln - b.ln,
+      0,
+      a.idx - b.idx
+    )
   end
 
   def begin_tkn!()
@@ -36,8 +37,8 @@ class Lexer
 
   def newline!()
     # @pos = { ln: @pos[:ln] + 1, col: 0 }
-    @pos[:ln] += 1
-    @pos[:col] = 0
+    @pos.ln += 1
+    @pos.col = 0
     next_chr!()
   end
 
@@ -71,41 +72,41 @@ class Lexer
   end
 
   def at_end?()
-    @pos[:idx] >= @len
+    @pos.idx >= @len
   end
 
   def raise_at_end!(littype)
-    raise LexError, "Unterminated #{littype} literal at [#{@beg[:ln]}:#{@beg[:col]}]-[#{@pos[:ln]}:#{@pos[:col]}]" if at_end?()
+    raise LexError, "Unterminated #{littype} literal at #{@beg}-#{@pos}" if at_end?()
   end
 
   def peek()
-    @str[@pos[:idx]]
+    @str[@pos.idx]
   end
 
   def peekl(l)
-    @str[@pos[:idx], l]
+    @str[@pos.idx, l]
   end
 
   def peekn(n)
-    @str[@pos[:idx] + n]
+    @str[@pos.idx + n]
   end
 
   def peeknl(n, l = 1)
-    @str[@pos[:idx] + n, l]
+    @str[@pos.idx + n, l]
   end
 
   def next_chr!()
-    @pos[:col] += 1
-    @str[@pos[:idx] += 1]
+    @pos.col += 1
+    @str[@pos.idx += 1]
   end
 
   def lex_number()
     next_chr!() if peek() == ?-
     nt = case peekn(1)
-      when ?x
-        lex_hex_number()
-      when ?o
-        lex_oct_number()
+      when ?x, ?X
+        peekn(2) =~ /[0-9a-f]/i ? lex_hex_number() : (raise LexError, "Improper hex number, expected a digit at #{@pos + 2}.")
+      when ?o, ?O
+        peekn(2) =~ /[0-7]/ ? lex_oct_number() : (raise LexError, "Improper oct number, expected a digit at #{@pos + 2}.")
       else
         lex_dec_number()
       end
@@ -113,15 +114,15 @@ class Lexer
   end
 
   def default_lit()
-    @str[@beg[:idx], pdiff(@pos, @beg)[:idx]]
+    @str[@beg.idx, pdiff(@pos, @beg).idx]
   end
 
   def create_token(value, type, literal = default_lit())
-    { value: value,
-      type: type,
-      literal: literal,
-      pos: @beg.dup,
-      end: @pos.dup }
+    Token.new(value,
+              type,
+              literal,
+              @beg.dup,
+              @pos.dup)
   end
 
   def lex_hex_number()
@@ -133,7 +134,7 @@ class Lexer
 
   def lex_oct_number()
     next_chr!()
-    next while next_chr!() =~ /[0-8]/
+    next while next_chr!() =~ /[0-7]/
     literal = default_lit()
     create_token(literal.to_i(8).to_f, :number, literal)
   end
@@ -158,11 +159,11 @@ class Lexer
   def lex_string()
     sacc = ""
     bseg = @beg.dup
-    bseg[:idx] += 1
+    bseg.idx += 1
     while next_chr!() != ?"
       raise_at_end!(:string)
       if peek() == ?\\
-        sacc << @str[bseg[:idx], pdiff(@pos, bseg)[:idx]]
+        sacc << @str[bseg.idx, pdiff(@pos, bseg).idx]
         case next_chr!()
         when ?n
           sacc << ?\n
@@ -177,10 +178,10 @@ class Lexer
           next
         end
         bseg = @pos.dup
-        bseg[:idx] += 1
+        bseg.idx += 1
       end
     end
-    sacc << @str[bseg[:idx], pdiff(@pos, bseg)[:idx]]
+    sacc << @str[bseg.idx, pdiff(@pos, bseg).idx]
     next_chr!()
     create_token(sacc, :string)
   end
@@ -206,7 +207,7 @@ class Lexer
 
   class << self
     def token_type(token)
-      token[:type]
+      token.type
     end
 
     def token_type?(token, *types)

@@ -1,7 +1,7 @@
-a
+(a)
 
-'print
+('print)
 
-/name---
+(/name---)
 
-#name2
+(#name2)
