@@ -39,14 +39,18 @@ class Parser
     @tkns[@idx + n, l]
   end
 
+  def next!()
+    @idx += 1
+  end
+
   def advance()
     tkn = @tkns[@idx]
-    @idx += 1
+    next!()
     tkn
   end
 
   def next_tkn!()
-    @tkns[@idx += 1]
+    @tkns[next!()]
   end
 
   def expect(*types)
@@ -56,17 +60,26 @@ class Parser
         "#{types[...-1].join(", ")}, or #{types[-1]}"
       raise ParseError, "Expected a #{emsg}, got #{peek() ? Lexer.token_type(peek()) : "EOF"}"
     end
-    next_tkn!()
+    advance()
   end
 
   def parseall()
     Manipulate.take_from_while_lambda { parse_form() }
   end
 
+  def parse_to_forms()
+    parseall().map { _1.to_lisp_value() }
+  end
+
   def parse()
     raise StopIteration if at_end?()
 
     return parse_form() if Lexer.token_type?(peek(), :lparen)
+    if Lexer.token_type?(peek(), :quote)
+      quote = Token.new(:quote, :name, "'", peek().pos)
+      next!()
+      return List.from_singles(quote, parse())
+    end
     tkn = peek()
     expect(*EXPRESSION_TKNS)
     tkn
@@ -85,6 +98,6 @@ class Parser
     expect(:rparen)
     @form_pos_stack.pop()
 
-    Form.new(form)
+    List.new(form)
   end
 end

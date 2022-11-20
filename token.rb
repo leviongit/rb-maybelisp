@@ -1,3 +1,5 @@
+require "./lisp_value.rb"
+
 class Position
   POSITION_SEP = ->q {
     -> {
@@ -52,7 +54,7 @@ class Position
 end
 
 class Token
-  def initialize(value, type, literal, pos, end_)
+  def initialize(value, type, literal, pos, end_ = pos + 1)
     @value = value
     @type = type
     @literal = literal
@@ -88,11 +90,15 @@ class Token
     # }
     # q.pp(@value)
     case @type
-    when :name, :number
-      q.text(@literal)
+    when :name
+      q.text(@value)
     else
       q.pp(@value)
     end
+  end
+
+  def to_lisp_value()
+    LispValue.new(type, value)
   end
 
   # def inspect()

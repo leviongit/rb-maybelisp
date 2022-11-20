@@ -1,6 +1,5 @@
 require "./utils.rb"
 require "./token.rb"
-cnt = 0
 
 class Lexer
   class LexError < StandardError; end
@@ -195,7 +194,7 @@ class Lexer
   def lex_name()
     next until next_chr!() =~ /[\[\]\(\)\{\}\s]/
     val = default_lit()
-    create_token(val, :name, val)
+    create_token(val.to_sym, :name, val)
   end
 
   def lexall()

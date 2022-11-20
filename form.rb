@@ -1,24 +1,24 @@
-class List
+class List < Array
   LIST_SEP = ->q {
     -> {
       q.breakable()
     }
   }
 
-  def self.from_singular(*elems)
+  def self.from_singles(*elems)
     new(elems)
   end
 
   def initialize(elems)
-    @elems = elems
+    initialize_copy(elems)
   end
 
   def car()
-    @elems[0]
+    self[0]
   end
 
   def cdr()
-    List.new(@elems[1..])
+    List.new(self[1..])
   end
 
   @@car_ = List.instance_method(:car)
@@ -29,7 +29,8 @@ class List
   def method_missing(name, *_)
     if (match = /c([ad]+)r/.match(name))
       cv = ->x { x }
-      match.captures[0].each_char { |c|
+      # this is awfully inefficient... (especially since this now subclasses Array) but it does magic
+      match.captures[0].each_char.reverse_each { |c|
         case c
         when ?a
           cv = @@car << cv
@@ -45,7 +46,7 @@ class List
   end
 
   def to_s()
-    "(#{@elems.map(&:to_s).join(" ")})"
+    "(#{map(&:to_s).join(" ")})"
   end
 
   def pretty_print(q)
@@ -54,11 +55,27 @@ class List
       #   q.breakable() if i > 0
       #   q.text(el.to_s)
       # }
-      q.seplist(@elems, LIST_SEP[q]) { |el|
+      q.seplist(self, LIST_SEP[q]) { |el|
         q.pp(el)
       }
     }
   end
+
+  def map(...)
+    List.new(super)
+  end
+
+  def to_lisp_value()
+    LispValue.new(:list, self.map { _1.to_lisp_value() })
+  end
 end
 
-class Form < List; end
+# class Form < List
+#   def eval(env)
+#     env[@car.value][env, @car]
+#   end
+
+#   def to_lisp_value()
+#     LispValue.new(:form, self)
+#   end
+# end
