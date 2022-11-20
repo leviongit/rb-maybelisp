@@ -66,7 +66,7 @@ class List < Array
   end
 
   def to_lisp_value()
-    LispValue.new(:list, self.map { _1.to_lisp_value() })
+    LispValue.list(self.map { _1.to_lisp_value() })
   end
 end
 

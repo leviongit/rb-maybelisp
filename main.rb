@@ -4,8 +4,5 @@ require "./lisp.rb"
 require "pp"
 
 File.open(ARGV[0]) do |file|
-  tokens = Lexer.new(file.read).lexall()
-  # pp tokens
-  forms = Parser.new(tokens).parse_to_forms()
-  Lisp.execute(forms)
+  Lisp.eval(file.read)
 end

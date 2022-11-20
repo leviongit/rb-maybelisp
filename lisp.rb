@@ -9,16 +9,42 @@ module Lisp
     loop: ->env, args {
       args.each { ensure_value_type(_1, :list) }
       loop {
-        eval_all(env, args)
+        begin
+          eval_all_(env, args)
+        rescue StopIteration
+          return LispValue.nil()
+        end
       }
     },
-  )
+    break: ->env, args { raise StopIteration, args.car },
+    read: ->env, args { LispValue.string($stdin.gets) },
+    eval: ->env, args {
+      eval!(env, eval_all(env, args))
+    },
+  ).freeze
 
   class EvalError < StandardError; end
 
   class << self
+    def eval!(env, *strings)
+      strings = strings.flatten.join("\n")
+      tokens = Lexer.new(strings).lexall()
+      forms = Parser.new(tokens).parse_to_forms()
+      eval_all_(env, forms)
+    end
+
+    def eval_all_(env, args)
+      val = nil
+      forall(args) { val = _1.eval(env) }
+      val
+    end
+
     def eval_all(env, args)
       args.map { _1.eval(env) }
+    end
+
+    def forall(vals, &action)
+      vals.each(&action)
     end
 
     def ensure_value_type(value, *types)
@@ -30,11 +56,17 @@ module Lisp
       end
     end
 
-    def execute(forms)
-      env = DEFAULT_ENV
-      forms.each { |form|
-        form.eval(env)
-      }
+    def ensure_arity(args, arity, name: :anonymous)
+      unless arity === args.length
+        raise EvalError, "#{name} expected #{arity} arguments, got #{args.length}"
+      end
+    end
+
+    def eval(*strings)
+      env = DEFAULT_ENV.dup
+      eval!(env, strings)
+    rescue Interrupt
+      exit(0)
     end
   end
 end

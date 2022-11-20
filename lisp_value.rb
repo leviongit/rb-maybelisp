@@ -1,4 +1,26 @@
 class LispValue
+  class << self
+    def string(value)
+      new(:string, value.to_s)
+    end
+
+    def name(value)
+      new(:name, value.to_s)
+    end
+
+    def list(value)
+      new(:list, List.new(value.to_a))
+    end
+
+    def number(value)
+      new(:number, value.to_f)
+    end
+
+    def nil()
+      new(:nil, nil)
+    end
+  end
+
   def initialize(type, value)
     @type = type
     @value = value
@@ -10,6 +32,10 @@ class LispValue
 
   def name?()
     @type == :name
+  end
+
+  def nil?()
+    @value.nil?
   end
 
   def eval(env)
